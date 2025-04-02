@@ -80,7 +80,13 @@ export default function App() {
         path: ({ identityId }) => `media/${identityId}/${newItem.image}`,
         data: form.get("image"),
       }).result;
-
+      const uploadResult = await uploadData({
+        path: ({ identityId }) => `media/${identityId}/${newItem.image}`,
+        data: form.get("image"),
+      }).result;
+      
+      console.log("Upload result:", uploadResult);
+      
 
     fetchItems();
     event.target.reset();
@@ -173,12 +179,14 @@ export default function App() {
                 variation="quiet"
                 required
               />
-              <View
+              <input
                 name="image"
                 as="input"
                 type="file"
-                alignSelf={"end"}
+                
                 accept="image/png, image/jpeg"
+                style={{alignSelf: 'end' }}
+                required
               />
 
               <Button type="submit" variation="primary">
