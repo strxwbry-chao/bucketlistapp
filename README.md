@@ -1,3 +1,6 @@
+Bucket list app utilizing AWS amplify, Appsync, GraphQL API, DynamoDb, and an s3 bucket. Backend was set up locally and configured upon push using Amplify. The application uses React
+and a Vite bundler. Lets me focus on development! 
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
