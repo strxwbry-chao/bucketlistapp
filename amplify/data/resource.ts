@@ -6,8 +6,8 @@ const schema = a.schema({
       title: a.string(),
       description: a.string(),
       image: a.string(),
-    })
-    .authorization((allow) => [allow.authenticated()]), // or guest() if needed
+    }).authorization(allow => [allow.owner()
+    ]), //BUG FIX: had allow.authenticated, which meant ANYONE with an account could see everyones bucketlist. However, s3 already has the owner listed, so all we had to do was do allow.owner that added that col conditional
 });
 
 export type Schema = ClientSchema<typeof schema>;

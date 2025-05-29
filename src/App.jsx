@@ -16,12 +16,14 @@ import {
 } from "@aws-amplify/ui-react";
 import { Amplify } from "aws-amplify";
 import '@aws-amplify/ui-react/styles.css';
-import './App.css';
+import { getCurrentUser } from "aws-amplify/auth";
+
 
 import { getUrl } from "aws-amplify/storage";
 import { uploadData } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
 import outputs from "../amplify_outputs.json";
+
 /**
  * @type {import('aws-amplify/data').Client<import('../amplify/data/resource').Schema>}
  */
@@ -34,38 +36,62 @@ const client = generateClient({
 
 
 export default function App() {
+  return (
+    <Authenticator>
+      {({ signOut, user }) => (
+        <AuthenticatedApp user={user} signOut={signOut} />
+      )}
+    </Authenticator>
+  );
+}
+
+function AuthenticatedApp({ user, signOut }) {
   const [items, setItems] = useState([]);
-
-
+  // (re)load items whenever the signed-in user changes
   useEffect(() => {
+    setItems([]);      // clear stale data
     fetchItems();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.userId]);
 
 
   async function fetchItems() {
-    const { data: items } = await client.models.BucketItem.list();
-    await Promise.all(
-      items.map(async (item) => {
-        if (item.image) {
-          const linkToStorageFile = await getUrl({
-            path: ({ identityId }) => `media/${identityId}/${item.image}`,
-          });
-          console.log(linkToStorageFile.url);
-          item.image = linkToStorageFile.url;
-        }
-        return item;
-      })
-    );
-    console.log(items);
-    setItems(items);
+    try {
+      setItems([]);
+      const user = await getCurrentUser();
+      const username = user?.signInDetails?.loginId;
+  
+      const { data: allItems } = await client.models.BucketItem.list({});
+
+      await Promise.all(
+        allItems.map(async (item) => {
+          if (item.image) {
+            console.log("Attempting to get image for:", item.image);
+            const linkToStorageFile = await getUrl({
+              path: ({ identityId }) => `media/${identityId}/${item.image}`,
+            });
+            console.log("Generated signed URL:", linkToStorageFile.url);
+            item.image = linkToStorageFile.url; //LOL url is an object, use url.href...
+            // no longer have to reconstruct the path!: path: ({ identityId }) => `media/${identityId}/${item.image}`,
+
+          }
+          return item;
+        })
+      );
+      console.log(items);
+      setItems(allItems);
+    } catch (err) {
+      console.error("Error in fetchItems:", err);
+    }
   }
 
 
+
+  //creating the item i will upload
   async function createItem(event) {
     event.preventDefault();
     const form = new FormData(event.target);
     console.log(form.get("image").name);
-
 
     const { data: newItem } = await client.models.BucketItem.create({
       title: form.get("title"),
@@ -73,27 +99,19 @@ export default function App() {
       image: form.get("image").name,
     });
 
-
     console.log(newItem);
     if (newItem.image)
       await uploadData({
         path: ({ identityId }) => `media/${identityId}/${newItem.image}`,
         data: form.get("image"),
       }).result;
-      const uploadResult = await uploadData({
-        path: ({ identityId }) => `media/${identityId}/${newItem.image}`,
-        data: form.get("image"),
-      }).result;
-      
-      console.log("Upload result:", uploadResult);
-      
 
     fetchItems();
     event.target.reset();
+
   }
 
-
-  async function deleteItem({ id }) {
+ async function deleteItem({ id }) {
     const toBeDeletedItem = {
       id: id,
     };
@@ -107,46 +125,17 @@ export default function App() {
 
     fetchItems();
   }
-
-
   return (
-    <View
-  display="flex"
-  justifyContent="center"
-  alignItems="center"
-  minHeight="100vh"
->
-<Authenticator
-  components={{
-    Wrapper: ({ children }) => (
-      <View
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-        padding="2rem"
-      >
-        {children}
-      </View>
-    ),
-    SignIn: {
-      SubmitButton: (props) => (
-        <Button
-          {...props}
-          className="sign-in-sparkle"
-          variation="primary"
-          width="100%"
-        >
-          <span>{props.children}</span>
-        </Button>
-      ),
-    },
-  }}
->
-
-
-
-      {({ signOut }) => (
+    <BucketListUI
+    items={items}
+    createItem={createItem}
+    deleteItem={deleteItem}
+    signOut={signOut}
+  />
+);
+}
+function BucketListUI({ items, createItem, deleteItem, signOut }) {
+  return (
         <Flex
           className="App"
           justifyContent="center"
@@ -179,15 +168,14 @@ export default function App() {
                 variation="quiet"
                 required
               />
-              <input
+              <View
                 name="image"
                 as="input"
                 type="file"
-                
+                alignSelf={"end"}
                 accept="image/png, image/jpeg"
-                style={{alignSelf: 'end' }}
-                required
               />
+
 
               <Button type="submit" variation="primary">
                 Add to Bucket List
@@ -237,11 +225,7 @@ export default function App() {
           </Grid>
           <Button onClick={signOut}>Sign Out</Button>
         </Flex>
-      )}
-    </Authenticator>
-    </View>
+      
+
   );
 }
-
-
-
